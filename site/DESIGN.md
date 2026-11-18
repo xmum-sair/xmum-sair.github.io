@@ -236,3 +236,13 @@ site/
 - **小帮手（2026-11-06，维护者选 Cloudflare 网站内聊天）**：每页右下角「💬 小帮手」按钮（`static/assistant.js`），只在仓库变量 `ASSISTANT_URL` 和 `TURNSTILE_SITE_KEY` 都设了、且 `BOTS_PAUSED` 不是 1 时出现；为了让页头保持一行，没有放进导航。问题发到 `assistant/` 里的 Cloudflare Worker（工作流 `assistant.yml` 部署）：Turnstile 人机验证一次、每访客每天 15 次、全站每天 150 次（Durable Object 计数，只存地址哈希），Haiku 先判断是否和本站与学业相关，相关的再由 Opus（只读工具：站内搜索含知识点、单门课信息）回答，不解作业和试卷题。回答里的链接只保留本站和 xmum-sair GitHub 的。详细设置见 `assistant/README.md`。
 - **课程评价搬到 Cloudflare（2026-11-06，维护者决定）**：不再用 GitHub Issue 表单（`review.yml` 和 `reviews.yml` 已删），在 `/rate/` 页直接打分（`static/rate.js`），提交给小帮手的同一个 Worker（`assistant/src/reviews.js`，Durable Object `Reviews` 的 SQLite）。不用登录；每票一次 Turnstile；同一浏览器同一门课同一老师一票，再交即改分；硬上限每 IP 每天 100 票（IP 只用于这条上限，校园 WiFi 共用地址不会被误伤）、每浏览器每天 20 票；一小时内某门课某老师超过 8 票、名单外的老师或课程会标记待审但照常计入（维护者选择「先通过、定期提醒」），名单外名字在保留前显示「待确认」。评分从 Worker 的 `/ratings` 读（缓存 60 秒，投票和审核后立即刷新），Worker 不可用时退回 data 分支里最后一份 ratings.json。管理页在 Worker 的 `/admin`（`REVIEWS_ADMIN_TOKEN`）；每周一 `review-queue.yml` 有待审票就开 Issue。旧票由 `reviews/export_legacy.py` 在每次部署后导入。新老师机器人改从 Worker 取已保留的老师和学期。
 
+## 语言切换 | Language switch (2026-11-18)
+
+- 页面仍然只生成一套，照旧用两种语言写（`中文 | English`、`中文<br>English`、中文一段接英文一段）。`site/i18n.py` 在生成时把两半分别标成 `l-zh` / `l-en`（中间的分隔标成 `l-sep`），`base.html` 的第一段脚本设置 `<html data-lang>`：先看浏览器里存的选择，没有就看系统语言（中文给中文，其余给英文）。样式表据此隐藏另一半；没有脚本时两种都显示，和以前一样。
+- 规则偏保守：左边有中文、右边没有中文，并且两边的链接、数字、网址和邮箱一致，才算一对；否则原样保留、两种语言都显示。所以不会有内容在某种语言下消失，课程名（只有英文）也不会被动到。
+- 自动规则分不清的地方（一对文字旁边跟着共用的值，如“来自 | by 某人”），在 `build.py` 里用 `bi(zh, en)` 手工标。
+- 属性（placeholder、title、aria-label）、`<option>`、页面标题和脚本后来生成的文字由 `static/site.js` 按同样的规则处理；脚本里的界面文字继续写成 `'中文 | English'` 即可，带数字的要两边都写。访客自己写的内容（帖子标题、正文）放在带 `data-nt` 的元素里，不参与切换。
+- 测试 `site/test_i18n.py`；`test_build.py` 读页面时会先去掉语言标记，所以原有断言照旧按“中文 | English”写。
+
+One set of pages, written in both languages as before. `site/i18n.py` marks the two halves at build time (`l-zh`, `l-en`, `l-sep` for what sits between); the first script in `base.html` sets `<html data-lang>` from the stored choice, else from the system language (Chinese for Chinese systems, English otherwise), and the stylesheet hides the other half. Without script both show. A pair is split only when the left half has Chinese, the right has none, and both carry the same links, numbers and addresses; anything else stays bilingual, so nothing can vanish in one language, and course names (English only) are never touched. Where the rule cannot tell (a pair next to a value both share), `build.py` marks the pair by hand with `bi(zh, en)`. Attributes, `<option>` labels, the page title and text added by scripts are handled by `static/site.js` with the same rule: script strings stay `'中文 | English'`, with any number written on both sides. Visitors' own words sit under `data-nt` and take no part.
+

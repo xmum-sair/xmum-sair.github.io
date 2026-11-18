@@ -8,10 +8,12 @@
   if (!boxes.length) return;
   var base = document.body.dataset.base || '/';
   var LABELS = {
-    course: '课程质量 Course', instructor: '老师质量 Instructor', difficulty: '难度 Difficulty', work: '作业量 Work',
-    learned: '学到多少 Learned', communication: '沟通 Communication', access: '找得到老师 Access', recommend: '是否推荐 Recommend'
+    course: '课程质量 | Course', instructor: '老师质量 | Instructor', difficulty: '难度 | Difficulty', work: '作业量 | Work',
+    learned: '学到多少 | Learned', communication: '沟通 | Communication', access: '找得到老师 | Access', recommend: '是否推荐 | Recommend'
   };
-  var SHORT = { course: '课程 Course', instructor: '老师 Instructor', difficulty: '难度 Difficulty', work: '作业 Work' };
+  var SHORT = { course: '课程 | Course', instructor: '老师 | Instructor', difficulty: '难度 | Difficulty', work: '作业 | Work' };
+  // '学到多少 | Learned' and 4.2 → '学到多少 4.2 | Learned 4.2': the score sits in both halves (static/site.js shows one)
+  function scored(label, score) { return label.split(' | ').map(function (half) { return half + ' ' + score; }).join(' | '); }
 
   function el(tag, cls, text) {
     var e = document.createElement(tag);
@@ -43,14 +45,14 @@
       if (known.indexOf(r.key) >= 0) { a = el('a', 'lcard-name', r.e.name); a.href = base + 'lecturers/' + r.key + '/'; }
       else { a = el('span', 'lcard-name', r.e.name); a.title = '这位老师还没有名录页 | no directory page yet'; }   // named only in a review
       top.appendChild(a);
-      top.appendChild(el('small', null, r.e.n + ' 人评价 | voters'));
+      top.appendChild(el('small', null, r.e.n + ' 人评价 | ' + r.e.n + ' voters'));
       c.appendChild(top);
       var shown = r.e.n >= data.min_n;
       c.appendChild(tiles(data, shown ? r.e : null, 'mini'));
       if (shown) {
         var extra = data.dims.filter(function (d) { return data.main.indexOf(d) < 0; }).map(function (d) {
           var v = r.e[d];
-          return (LABELS[d] || d) + ' ' + (v === null || v === undefined ? '—' : v.toFixed(1));
+          return scored(LABELS[d] || d, v === null || v === undefined ? '—' : v.toFixed(1));
         });
         if (extra.length) c.appendChild(el('p', 'extras', extra.join(' · ')));
       } else {
@@ -60,7 +62,7 @@
     });
     return wrap;
   }
-  function updated(data) { return el('p', 'muted', '数据更新于 | Updated ' + (data.generated || '').replace('T', ' ').replace('Z', ' UTC')); }
+  function updated(data) { var at = (data.generated || '').replace('T', ' ').replace('Z', ' UTC'); return el('p', 'muted', '数据更新于 ' + at + ' | Updated ' + at); }
   function belowMin(data, all) {
     return all && all.n < data.min_n ? el('p', 'muted', all.n + ' 人评价，满 ' + data.min_n + ' 人显示平均分 | ' + all.n + ' rated; averages appear at ' + data.min_n) : null;
   }
@@ -99,7 +101,8 @@
       var wrap = el('div', 'chips');
       hits.forEach(function (c) {
         var a = courseLink(c, 'chip', c + ' ' + ((courses[c] || {}).name || ''));
-        a.appendChild(el('small', null, ((data.courses[c].all || {}).n || 0) + ' 人'));
+        var voters = (data.courses[c].all || {}).n || 0;
+        a.appendChild(el('small', null, voters + ' 人 | ' + voters + ' voters'));
         wrap.appendChild(a);
       });
       box.appendChild(wrap);
@@ -117,7 +120,7 @@
         hits.forEach(function (c) {
           var li = el('li'), e = data.courses[c];
           li.appendChild(courseLink(c, null, c + ' ' + courses[c].name));
-          li.appendChild(el('small', null, e && e.all ? ' · ' + e.all.n + ' 人评价 | voters' : ' · 还没有评价 | no ratings yet'));
+          li.appendChild(el('small', null, e && e.all ? ' · ' + e.all.n + ' 人评价 | ' + e.all.n + ' voters' : ' · 还没有评价 | no ratings yet'));
           ul.appendChild(li);
         });
         list.appendChild(ul);
@@ -151,7 +154,7 @@
       title.appendChild(links);
       head.appendChild(title);
       var avg = el('div');
-      avg.appendChild(el('p', 'rv-label', entry && entry.all ? '总平均 | Overall · ' + entry.all.n + ' 人 | voters' : '还没有人评价 | No ratings yet'));
+      avg.appendChild(el('p', 'rv-label', entry && entry.all ? '总平均 | Overall · ' + entry.all.n + ' 人 | ' + entry.all.n + ' voters' : '还没有人评价 | No ratings yet'));
       avg.appendChild(tiles(data, entry && entry.all));
       var note = belowMin(data, entry && entry.all);
       if (note) avg.appendChild(note);

@@ -22,6 +22,10 @@
   var threads = null;
 
   function mk(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  // language (static/site.js): visitors' own words are never split into halves; a category shows the half in use
+  function ut(e) { e.setAttribute('data-nt', ''); return e; }
+  function nm(c) { return (c.icon ? c.icon + ' ' : '') + (c.en ? c.zh + ' | ' + c.en : c.zh); }
+  function say(zh, en) { var l = document.documentElement.getAttribute('data-lang'); return l === 'en' ? en : l === 'zh' ? zh : zh + ' ' + en; }
   function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); }
   function board(key) { return BOARDS.filter(function (b) { return b.key === key; })[0] || BOARDS[BOARDS.length - 1]; }
   function cat(key) { return CATS.filter(function (c) { return c.key === key; })[0] || { key: key, zh: key, en: '', icon: '📝' }; }
@@ -149,20 +153,20 @@
     var isPost = t.type === 'post';
     var b = isPost ? cat(t.board) : board(t.board), c = t.course && course(t.course);
     var li = mk('li', 'thread-row' + (isPost ? ' is-post' : ''));
-    var a = mk('a', 'thread-title', t.title);
+    var a = ut(mk('a', 'thread-title', t.title));
     a.href = isPost ? postUrl(t.id) : threadUrl(t.id);
     if (inPage) a.addEventListener('click', function (e) { if (e.metaKey || e.ctrlKey) return; e.preventDefault(); openThread(t.id, true); });
     li.appendChild(mk('span', 'thread-board', isPost ? '📝' : b.icon));
     var main = mk('span', 'thread-main');
     main.appendChild(a);
     var meta = mk('small', 'thread-meta');
-    meta.appendChild(document.createTextNode((isPost ? '博客 · ' : '') + b.zh + ' · '));
+    meta.appendChild(document.createTextNode((isPost ? '博客 | Blog · ' : '') + nm({ zh: b.zh, en: b.en }) + ' · '));
     if (t.course) {
       var ca = mk(c ? 'a' : 'span', 'thread-course', t.course);
       if (c) ca.href = c.url;
       meta.appendChild(ca); meta.appendChild(document.createTextNode(' · '));
     }
-    meta.appendChild(document.createTextNode((t.author || '匿名同学') + ' · 💬 ' + t.replies + ' · ' + when(t.last)));
+    meta.appendChild(document.createTextNode((t.author || '匿名同学 | Anonymous') + ' · 💬 ' + t.replies + ' · ' + when(t.last)));
     main.appendChild(meta);
     li.appendChild(main);
     return li;
@@ -181,18 +185,18 @@
     else cover.appendChild(mk('span', 'post-cover-icon', c.icon));
     a.appendChild(cover);
     var body = mk('span', 'post-card-body');
-    body.appendChild(mk('span', 'post-card-cat', c.icon + ' ' + c.zh + (p.course ? ' · ' + p.course : '')));
-    body.appendChild(mk('span', 'post-card-title', p.title));
-    body.appendChild(mk('span', 'post-card-excerpt', p.excerpt));
-    body.appendChild(mk('span', 'post-card-meta', [p.author || '匿名同学', p.minutes + ' 分钟读完 | ' + p.minutes + ' min', '💬 ' + p.replies, when(p.at)].join(' · ')));
+    body.appendChild(mk('span', 'post-card-cat', nm(c) + (p.course ? ' · ' + p.course : '')));
+    body.appendChild(ut(mk('span', 'post-card-title', p.title)));
+    body.appendChild(ut(mk('span', 'post-card-excerpt', p.excerpt)));
+    body.appendChild(mk('span', 'post-card-meta', [p.author || '匿名同学 | Anonymous', p.minutes + ' 分钟读完 | ' + p.minutes + ' min', '💬 ' + p.replies, when(p.at)].join(' · ')));
     a.appendChild(body);
     return a;
   }
   function chips(items, current, onPick) {
     var row = mk('div', 'board-filters'); row.setAttribute('role', 'group');
     [{ key: '', zh: '全部', en: 'All', icon: '' }].concat(items).forEach(function (b) {
-      var c = mk('button', 'chip' + (current === b.key ? ' on' : ''), (b.icon ? b.icon + ' ' : '') + b.zh);
-      c.type = 'button'; c.title = b.en; c.setAttribute('aria-pressed', current === b.key ? 'true' : 'false');
+      var c = mk('button', 'chip' + (current === b.key ? ' on' : ''), nm(b));
+      c.type = 'button'; c.setAttribute('aria-pressed', current === b.key ? 'true' : 'false');
       c.addEventListener('click', function () { onPick(b.key); });
       row.appendChild(c);
     });
@@ -258,7 +262,7 @@
     var span = mk('span', 'post-actions');
     var rep = mk('button', 'linkish', '举报 | Report'); rep.type = 'button';
     rep.addEventListener('click', function () {
-      if (!confirm('举报这一条？被 3 个人举报后会先隐藏，等维护者处理。\nReport this? After three reports it is hidden until a maintainer looks.')) return;
+      if (!confirm(say('举报这一条？被 3 个人举报后会先隐藏，等维护者处理。', 'Report this? After 3 reports it is hidden until a maintainer looks.'))) return;
       post('/report', { id: item.id, device: device() }).then(function (r) {
         rep.textContent = r.data.counted === false ? '你已举报过 | Already reported' : '已举报，谢谢 | Reported, thanks'; rep.disabled = true;
       }).catch(function () { rep.textContent = '举报失败 | Failed'; });
@@ -267,7 +271,7 @@
     if (owned(item.id)) {
       var wd = mk('button', 'linkish', '撤回 | Withdraw'); wd.type = 'button';
       wd.addEventListener('click', function () {
-        if (!confirm('撤回这一条？撤回后不能恢复。\nWithdraw this? It cannot be undone.')) return;
+        if (!confirm(say('撤回这一条？撤回后不能恢复。', 'Withdraw this? It cannot be undone.'))) return;
         post('/withdraw', { id: item.id, device: device() }).then(function (r) {
           if (r.status !== 200) { wd.textContent = '撤回失败 | Failed'; return; }
           onGone(item.id === threadId);
@@ -279,14 +283,14 @@
   }
 
   function author(head, name, op, at) {
-    head.appendChild(mk('strong', '', name || '匿名同学'));
+    head.appendChild(name ? ut(mk('strong', '', name)) : mk('strong', '', '匿名同学 | Anonymous'));
     if (op) head.appendChild(mk('span', 'badge', '楼主 | OP'));
     head.appendChild(mk('small', 'muted', ' ' + at));
   }
 
   function replies(box, d, reopen, onGone) {
     var t = d.thread;
-    box.appendChild(mk('h3', '', d.replies.length ? d.replies.length + ' 条' + (t.type === 'post' ? '评论 | comments' : '回复 | replies')
+    box.appendChild(mk('h3', '', d.replies.length ? d.replies.length + (t.type === 'post' ? ' 条评论 | ' + d.replies.length + ' comments' : ' 条回复 | ' + d.replies.length + ' replies')
                                                  : (t.type === 'post' ? '还没有评论 | No comments yet' : '还没有回复 | No replies yet')));
     d.replies.forEach(function (r, i) {
       var a = mk('article', 'post');
@@ -294,7 +298,7 @@
       var h = mk('p', 'post-head');
       author(h, r.author, r.op, '#' + (i + 1) + ' · ' + when(r.at));
       a.appendChild(h);
-      var bd = mk('div', 'post-body'); linkify(bd, r.body); a.appendChild(bd);
+      var bd = ut(mk('div', 'post-body')); linkify(bd, r.body); a.appendChild(bd);
       a.appendChild(actions(r, t.id, onGone));
       box.appendChild(a);
     });
@@ -325,10 +329,10 @@
       var cl = mk(c ? 'a' : 'span', '', t.course + (c ? ' ' + c.name : '')); if (c) cl.href = c.url; top.appendChild(cl);
     }
     box.appendChild(top);
-    box.appendChild(mk('h2', 'thread-h', t.title));
+    box.appendChild(ut(mk('h2', 'thread-h', t.title)));
     var first = mk('article', 'post post-op');
     var head = mk('p', 'post-head'); author(head, t.author, true, when(t.at)); first.appendChild(head);
-    var body = mk('div', 'post-body'); linkify(body, t.body); first.appendChild(body);
+    var body = ut(mk('div', 'post-body')); linkify(body, t.body); first.appendChild(body);
     var gone = function (all) { if (all) { renderFull(); refresh(); } else openThread(t.id, false); };
     first.appendChild(actions(t, t.id, gone));
     box.appendChild(first);
@@ -359,9 +363,9 @@
       var ca = mk(cr ? 'a' : 'span', '', t.course + (cr ? ' ' + cr.name : '')); if (cr) ca.href = cr.url; top.appendChild(ca);
     }
     box.appendChild(top);
-    box.appendChild(mk('h1', 'blog-title', t.title));
-    box.appendChild(mk('p', 'blog-meta', [t.author || '匿名同学', when(t.at), t.minutes + ' 分钟读完 | ' + t.minutes + ' min read'].join(' · ')));
-    var body = mk('div', 'blog-body'); markdown(body, t.body, imgUrl); box.appendChild(body);
+    box.appendChild(ut(mk('h1', 'blog-title', t.title)));
+    box.appendChild(mk('p', 'blog-meta', [t.author || '匿名同学 | Anonymous', when(t.at), t.minutes + ' 分钟读完 | ' + t.minutes + ' min read'].join(' · ')));
+    var body = ut(mk('div', 'blog-body')); markdown(body, t.body, imgUrl); box.appendChild(body);
     var gone = function (all) { if (all) { go(); renderBlog(); refresh(); } else openPost(t.id, false); };
     box.appendChild(actions(t, t.id, gone));
     var talk = mk('section', 'blog-comments'); box.appendChild(talk);
@@ -570,13 +574,13 @@
     CATS.forEach(function (c) { var o = mk('option', '', c.icon + ' ' + c.zh + ' | ' + c.en); o.value = c.key; sel.appendChild(o); });
     field(f, 'cat', '分类 | Category *', sel);
     var cin = courseInput(f, '');
-    var title = input(100, '例如：大三暑假在 XX 实习的全过程 | e.g. How I got my Year 3 internship');
+    var title = input(100, '例如：大三暑假在 XX 实习的全过程 | e.g. How I got my third-year summer internship');
     field(f, 'title', '标题 | Title *', title);
     // toolbar
     var tools = mk('div', 'md-tools'); tools.setAttribute('role', 'toolbar'); tools.setAttribute('aria-label', '格式 | Formatting');
     var ta = mk('textarea', 'md-text'); ta.rows = 18; ta.maxLength = LIMIT.body;
-    ta.placeholder = '## 小标题\n正文可以分段写。**加粗**、- 列表、> 引用、[链接](https://…)。\n\n不要写别人的姓名、学号、电话；不要贴考试答案和评分标准。\n'
-      + '## A heading\nParagraphs, **bold**, - lists, > quotes, [links](https://…). No one else\'s personal data; no answers or marking schemes.';
+    ta.placeholder = say('## 小标题\n正文可以分段写。**加粗**、- 列表、> 引用、[链接](https://…)。\n\n不要写别人的姓名、学号、电话；不要贴考试答案和评分标准。',
+                         '## A heading\nParagraphs, **bold**, - lists, > quotes, [links](https://…). No one else\'s personal data; no answers or marking schemes.');
     function wrap(before, after, sample) {
       var s = ta.selectionStart, e = ta.selectionEnd, picked = ta.value.slice(s, e) || sample;
       ta.setRangeText(before + picked + after, s, e, 'end'); ta.focus(); changed();
@@ -594,7 +598,7 @@
      ['H', '小标题 | Heading', function () { linePrefix('## '); }],
      ['•', '列表 | List', function () { linePrefix('- '); }],
      ['❝', '引用 | Quote', function () { linePrefix('> '); }],
-     ['🔗', '链接 | Link', function () { var u = prompt('链接地址 | Link address', 'https://'); if (u && /^https?:\/\/\S+$/.test(u)) wrap('[', '](' + u + ')', '链接文字'); }]
+     ['🔗', '链接 | Link', function () { var u = prompt(say('链接地址', 'Link address'), 'https://'); if (u && /^https?:\/\/\S+$/.test(u)) wrap('[', '](' + u + ')', '链接文字'); }]
     ].forEach(function (t) {
       var b = mk('button', 'md-btn', t[0]); b.type = 'button'; b.title = t[1]; b.setAttribute('aria-label', t[1]);
       b.addEventListener('click', t[2]); tools.appendChild(b);
@@ -607,11 +611,12 @@
     tools.appendChild(view);
     var wrapEl = field(f, 'body', '正文 | Text *', ta, ' ');   // the hint line becomes the character and image counter
     wrapEl.insertBefore(tools, ta);
-    var preview = mk('div', 'blog-body md-preview'); preview.hidden = true; wrapEl.insertBefore(preview, ta.nextSibling);
+    var preview = ut(mk('div', 'blog-body md-preview')); preview.hidden = true; wrapEl.insertBefore(preview, ta.nextSibling);
     var count = wrapEl.querySelector('small');
     var upNote = mk('p', 'muted md-upload'); upNote.setAttribute('aria-live', 'polite'); wrapEl.appendChild(upNote);
     function imageCount() { return (ta.value.match(/!\[[^\]\n]{0,120}\]\(img:[a-f0-9]{16}\)/g) || []).length; }
-    function refreshCount() { count.textContent = ta.value.length + ' / ' + LIMIT.body + ' 字 · 图片 ' + imageCount() + ' / ' + LIMIT.images + ' | characters · images'; }
+    function refreshCount() { var chars = ta.value.length + ' / ' + LIMIT.body, imgs = imageCount() + ' / ' + LIMIT.images;
+      count.textContent = chars + ' 字 | ' + chars + ' characters · 图片 ' + imgs + ' | images ' + imgs; }
     view.addEventListener('click', function () {
       var on = preview.hidden;
       preview.hidden = !on; ta.hidden = on;
@@ -639,7 +644,7 @@
     f.elements.author.addEventListener('input', changed);
     var clearDraft = mk('button', 'linkish', '清空草稿 | Clear draft'); clearDraft.type = 'button';
     clearDraft.addEventListener('click', function () {
-      if (!confirm('清空这篇草稿？| Clear this draft?')) return;
+      if (!confirm(say('清空这篇草稿？', 'Clear this draft?'))) return;
       f.reset(); set('localStorage', DRAFT, ''); refreshCount();
     });
     f.appendChild(clearDraft);
@@ -648,12 +653,12 @@
       var files = Array.prototype.slice.call(pick.files || []);
       pick.value = '';
       var room = LIMIT.images - imageCount();
-      if (files.length > room) { upNote.textContent = '最多 ' + LIMIT.images + ' 张，这次只传前 ' + Math.max(0, room) + ' 张 | At most ' + LIMIT.images + ' images'; files = files.slice(0, Math.max(0, room)); }
+      if (files.length > room) { upNote.textContent = '最多 ' + LIMIT.images + ' 张，这次只传前 ' + Math.max(0, room) + ' 张 | At most ' + LIMIT.images + ' images: only the first ' + Math.max(0, room) + ' this time'; files = files.slice(0, Math.max(0, room)); }
       if (!files.length) return;
       if (!session() && !h.token) { h.err.textContent = '上传图片前请先完成下面的人机验证 | Complete the human check below before adding images'; h.need(); return; }
       (function next(i) {
-        if (i >= files.length) { upNote.textContent = files.length + ' 张图片已加入 ✓ | images added'; return; }
-        upNote.textContent = '正在处理第 ' + (i + 1) + ' / ' + files.length + ' 张… | Processing image ' + (i + 1) + '…';
+        if (i >= files.length) { upNote.textContent = files.length + ' 张图片已加入 ✓ | ' + files.length + ' images added ✓'; return; }
+        upNote.textContent = '正在处理第 ' + (i + 1) + ' / ' + files.length + ' 张… | Processing image ' + (i + 1) + ' / ' + files.length + '…';
         shrink(files[i]).then(function (blob) {
           var headers = { 'Content-Type': blob.type, 'X-Forum-Device': device() };
           if (session()) headers['X-Forum-Session'] = session(); else headers['X-Forum-Turnstile'] = h.token;
@@ -714,10 +719,10 @@
       var li = mk('li'), c = code && course(code);
       if (c) { var a = mk('a', '', code + ' ' + c.name); a.href = c.url; li.appendChild(a); }
       else li.appendChild(document.createTextNode(code || '没写课程 | no course named'));
-      li.appendChild(mk('small', '', ' ' + by[code].length + ' 人在求 | requests：'));
+      li.appendChild(mk('small', '', ' ' + by[code].length + ' 人在求 | ' + by[code].length + ' requests:'));
       by[code].forEach(function (t, i) {
         if (i) li.appendChild(document.createTextNode('、'));
-        var a = mk('a', '', t.title); a.href = threadUrl(t.id); li.appendChild(a);
+        var a = ut(mk('a', '', t.title)); a.href = threadUrl(t.id); li.appendChild(a);
       });
       ul.appendChild(li);
     });

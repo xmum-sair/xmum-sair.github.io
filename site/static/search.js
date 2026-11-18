@@ -45,7 +45,7 @@
       courses.forEach(function (c) {
         var li = el('li');
         li.append(link(c.url, c.code + ' ' + c.name, 'hit-title'));
-        var meta = [c.lecturers.join(', '), c.sessions.join(' · '), c.files + ' 份 | files']
+        var meta = [c.lecturers.join(', '), c.sessions.join(' · '), c.files + ' 份 | ' + c.files + ' files']
           .filter(Boolean).join(' · ');
         li.append(el('span', 'hit-meta', meta));
         cul.append(li);
@@ -60,7 +60,11 @@
         li.append(el('span', 'hit-title', f.name));
         li.append(el('span', 'hit-meta', f.code + ' · ' + f.session + ' · ' + f.type));
         var hitTopics = (f.topics || []).filter(function (t) { return t.toLowerCase().indexOf(q) !== -1; });
-        if (hitTopics.length) li.append(el('span', 'hit-topics', '知识点 | Topics: ' + hitTopics.join('、')));
+        if (hitTopics.length) {   // the label is in both languages, the topics are as indexed
+          var topics = el('span', 'hit-topics', '知识点 | Topics');
+          topics.append(': ' + hitTopics.join('、'));
+          li.append(topics);
+        }
         if (f.preview) li.append(link(f.preview, '预览 | Preview', 'btn'));
         li.append(link(f.download, '下载 | Download', 'btn'));
         ful.append(li);

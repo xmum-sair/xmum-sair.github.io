@@ -17,6 +17,14 @@
   var posts = [];
 
   function mk(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  // language (static/site.js): visitors' own words are never split into halves; a category shows the half in use
+  function ut(e) { e.setAttribute('data-nt', ''); return e; }
+  function nm(c) { return (c.icon ? c.icon + ' ' : '') + (c.en ? c.zh + ' | ' + c.en : c.zh); }
+  function say(zh, en) { var l = document.documentElement.getAttribute('data-lang'); return l === 'en' ? en : l === 'zh' ? zh : zh + ' ' + en; }
+  // the maintainers' own notes are written "中文 / English": those do take part in the language switch
+  function curated(p) { return String(p.id).indexOf('curated-') === 0; }
+  function words(p, s) { return curated(p) ? String(s).replace(/\s*\/\s+/, ' | ') : s; }
+  function own(p, e) { return curated(p) ? e : ut(e); }
   function cat(kind, key) { return (CATS[kind] || []).filter(function (c) { return c.key === key; })[0] || { key: key, zh: key, en: '', icon: '📌' }; }
   function closed(p) { return p.closed || (p.fields && p.fields.deadline && p.fields.deadline < today); }
   function when(at) {
@@ -53,15 +61,16 @@
     var el = mk(asLink ? 'a' : 'button', 'note note-' + p.cat + (closed(p) ? ' is-closed' : ''));
     if (asLink) el.href = base + 'opportunities/?p=' + encodeURIComponent(p.id); else { el.type = 'button'; el.addEventListener('click', function () { openPost(p); }); }
     var top = mk('span', 'note-top');
-    top.appendChild(mk('span', 'note-cat', c.icon + ' ' + c.zh));
+    top.appendChild(mk('span', 'note-cat', nm(c)));
     if (p.pinned) top.appendChild(mk('span', 'note-pin', '📌'));
     el.appendChild(top);
-    el.appendChild(mk('span', 'note-title', p.title));
-    if (p.fields.org) el.appendChild(mk('span', 'note-org', p.fields.org));
+    el.appendChild(own(p, mk('span', 'note-title', words(p, p.title))));
+    if (p.fields.org) el.appendChild(ut(mk('span', 'note-org', p.fields.org)));
     var meta = mk('span', 'note-meta');
     if (p.fields.code) meta.appendChild(mk('span', 'note-code', '🎟️ ' + p.fields.code));
-    if (p.fields.deadline) meta.appendChild(mk('span', '', (closed(p) ? '已截止 ' : '截止 ') + p.fields.deadline.slice(5)));
-    if (p.fields.location) meta.appendChild(mk('span', '', '📍 ' + p.fields.location));
+    if (p.fields.deadline) meta.appendChild(mk('span', '', closed(p) ? '已截止 ' + p.fields.deadline.slice(5) + ' | closed ' + p.fields.deadline.slice(5)
+                                                              : '截止 ' + p.fields.deadline.slice(5) + ' | due ' + p.fields.deadline.slice(5)));
+    if (p.fields.location) meta.appendChild(ut(mk('span', '', '📍 ' + p.fields.location)));
     if (!meta.childNodes.length) meta.appendChild(mk('span', '', when(p.at)));
     el.appendChild(meta);
     return el;
@@ -71,10 +80,9 @@
     var row = mk('div', 'board-filters');
     row.setAttribute('role', 'group');
     [{ key: '', zh: '全部', en: 'All', icon: '' }].concat(CATS[kind]).forEach(function (c, i) {
-      var b = mk('button', 'chip' + (i === 0 ? ' on' : ''), (c.icon ? c.icon + ' ' : '') + c.zh);
+      var b = mk('button', 'chip' + (i === 0 ? ' on' : ''), nm(c));
       b.type = 'button';
       b.setAttribute('aria-pressed', i === 0 ? 'true' : 'false');
-      b.title = c.en;
       b.addEventListener('click', function () {
         row.querySelectorAll('.chip').forEach(function (x) { x.classList.remove('on'); x.setAttribute('aria-pressed', 'false'); });
         b.classList.add('on'); b.setAttribute('aria-pressed', 'true');
@@ -151,14 +159,15 @@
     while (d.firstChild) d.removeChild(d.firstChild);
     d.className = 'board-dialog dlg-' + p.cat;
     d.appendChild(closeBtn(d));
-    d.appendChild(mk('p', 'dlg-cat', c.icon + ' ' + c.zh + ' · ' + c.en + (closed(p) ? ' · 已截止 | closed' : '')));
-    d.appendChild(mk('h2', '', p.title));
+    d.appendChild(mk('p', 'dlg-cat', nm(c) + (closed(p) ? ' · 已截止 | closed' : '')));
+    d.appendChild(own(p, mk('h2', '', words(p, p.title))));
     var dl = mk('dl', 'dlg-fields');
     ['org', 'location', 'mode', 'pay', 'deadline', 'contact', 'link', 'code'].forEach(function (k) {
       var v = p.fields[k];
       if (!v) return;
       dl.appendChild(mk('dt', '', LABELS[k]));
       var dd = mk('dd');
+      if (k !== 'code') ut(dd);   // the code row holds the Copy button
       if (k === 'link') { var a = mk('a', '', v); a.href = v; a.target = '_blank'; a.rel = 'noopener nofollow ugc'; dd.appendChild(a); }
       else if (k === 'code') {
         dd.appendChild(mk('code', 'refcode', v));
@@ -172,7 +181,7 @@
       dl.appendChild(dd);
     });
     if (dl.childNodes.length) d.appendChild(dl);
-    var body = mk('div', 'dlg-body'); linkify(body, p.body); d.appendChild(body);
+    var body = own(p, mk('div', 'dlg-body')); linkify(body, words(p, p.body)); d.appendChild(body);
     var foot = mk('p', 'dlg-foot', [p.author || '匿名 | anonymous', when(p.at)].filter(Boolean).join(' · '));
     if (!p.pinned) {
       var rep = mk('button', 'linkish', '举报 | Report'); rep.type = 'button';
@@ -187,7 +196,7 @@
   }
 
   function report(p, btn) {
-    if (!confirm('举报这条帖子？被 3 个人举报后会先隐藏，等维护者处理。\nReport this post? After three reports it is hidden until a maintainer looks.')) return;
+    if (!confirm(say('举报这条帖子？被 3 个人举报后会先隐藏，等维护者处理。', 'Report this post? After 3 reports it is hidden until a maintainer looks.'))) return;
     fetch(app.dataset.board + '/report', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, device: device() }) })
       .then(function (r) { return r.json(); })
       .then(function (d) { btn.textContent = d.counted === false ? '你已举报过 | Already reported' : '已举报，谢谢 | Reported, thanks'; btn.disabled = true; })

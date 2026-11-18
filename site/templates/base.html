@@ -8,11 +8,14 @@
 <link rel="canonical" href="__CANONICAL__">
 <link rel="alternate" type="application/atom+xml" title="最近上传 | Recent uploads" href="${base}feed.xml">
 <link rel="stylesheet" href="${base}static/style.css">
-<script>try{var t=localStorage.getItem('theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+<script>(function(d){try{var t=localStorage.getItem('theme');if(t==='light'||t==='dark')d.setAttribute('data-theme',t)}catch(e){}
+var l=null;try{l=localStorage.getItem('lang')}catch(e){}
+if(l!=='zh'&&l!=='en')l=/^zh/i.test((navigator.languages&&navigator.languages[0])||navigator.language||'')?'zh':'en';
+d.setAttribute('data-lang',l);d.lang=l==='en'?'en':'zh-Hans'})(document.documentElement)</script>
 </head>
 <body data-base="$base">
 <header class="site-header">
-  <a class="brand" href="$base">XMUM SAIR 生存指南 <span>| Survival Guide</span></a>
+  <a class="brand" href="$base">XMUM SAIR <span class="l-zh">生存指南</span><span class="l-sep"> | </span><span class="l-en">Survival Guide</span></a>
   $nav
 </header>
 <main>

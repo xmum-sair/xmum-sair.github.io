@@ -51,7 +51,8 @@
   function openForm(c, name, lecturer) {
     code.value = c || '';
     lect.value = lecturer || '';
-    title.textContent = c ? ('打分 | Rate: ' + c + (name ? ' ' + name : '')) : '打分 | Rate';
+    var what = c + (name ? ' ' + name : '');
+    title.textContent = c ? '打分：' + what + ' | Rate: ' + what : '打分 | Rate';
     fillLecturers();
     done.hidden = true;
     form.hidden = false;
@@ -110,7 +111,11 @@
     if (session && !/^\d{4}-\d{2}$/.test(session)) miss.push('学期格式 YYYY-MM | session as YYYY-MM');
     if (!confirmBox.checked) miss.push('确认 | confirmation');
     if (!token) miss.push('人机验证 | the human check');
-    if (miss.length) { err.textContent = '还差 | Still needed: ' + miss.join('、'); return; }
+    if (miss.length) {   // each entry is '中文 | English': one list per language
+      var half = function (i) { return miss.map(function (m) { return m.split(' | ')[i]; }); };
+      err.textContent = '还差：' + half(0).join('、') + ' | Still needed: ' + half(1).join(', ');
+      return;
+    }
     err.textContent = '';
     var btn = form.querySelector('button[type="submit"]');
     btn.disabled = true;
