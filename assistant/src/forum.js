@@ -9,6 +9,7 @@
 // published straight away, and a model error, a timeout or a used-up daily or monthly dollar cap always means "hold".
 // Threads, replies, blog posts and images live in one Durable Object's SQLite (ForumStore below).
 import { signSession, verifySession, hashKey, costUsd } from "./core.js";
+import { translateApi } from "./translate.js";
 
 export const FORUM_MODEL = "claude-haiku-5-5";
 // The boards in the order of discussions/boards.json, which holds their names and icons for the site; site/build.py checks
@@ -376,6 +377,7 @@ export async function forumApi(store, msg, now = Date.now()) {
       if (!p || !msg.device || p.device !== msg.device || !["live", "pending"].includes(p.status)) return { status: 404, data: { error: "not found" } };
       await store.put({ ...p, status: "withdrawn" });
       await store.deleteImagesOf(p.id);
+      await store.dropTr(`forum:${p.id}:`);
       return { status: 200, data: { withdrawn: true, was: p.status, thread: p.parent || p.id, images: p.images || [] } };
     }
     case "admin_list": {
@@ -392,7 +394,7 @@ export async function forumApi(store, msg, now = Date.now()) {
         const p = await store.get(String(id));
         if (!p) continue;
         await store.put({ ...p, status: msg.op === "approve" ? "live" : "removed", reports: msg.op === "approve" ? 0 : p.reports });
-        if (msg.op === "remove") await store.deleteImagesOf(p.id);
+        if (msg.op === "remove") { await store.deleteImagesOf(p.id); await store.dropTr(`forum:${p.id}:`); }
         threads.add(p.parent || p.id);
         images.push(...(p.images || []));
         n++;
@@ -426,13 +428,25 @@ export async function forumApi(store, msg, now = Date.now()) {
       }
       return { status: 200, data: { mime: im.mime, data: im.data } };
     }
+    case "tr_begin":   // translations on request (translate.js): stored here, next to the posts they belong to
+    case "tr_end":
+    case "tr_drop":
+      return translateApi(store, msg, now, async (id) => {   // the text of a live thread, blog post or reply
+        const p = await store.get(id);
+        if (!p || p.status !== "live") return null;
+        if (p.parent) { const t = await store.get(p.parent); if (!t || t.status !== "live") return null; }
+        return { title: p.title || "", body: p.body };
+      });
     default:
       return { status: 400, data: { error: "unknown op" } };
   }
 }
 
 export class MemoryForum {   // for tests
-  constructor() { this.posts = new Map(); this.counters = new Map(); this.reports = new Set(); this.usd = new Map(); this.images = new Map(); }
+  constructor() { this.posts = new Map(); this.counters = new Map(); this.reports = new Set(); this.usd = new Map(); this.images = new Map(); this.tr = new Map(); }
+  async getTr(key) { const t = this.tr.get(key); return t && { ...t }; }
+  async putTr(key, row) { this.tr.set(key, { ...row }); }
+  async dropTr(prefix) { for (const k of [...this.tr.keys()]) if (k.startsWith(prefix)) this.tr.delete(k); }
   async spent(key) { return this.usd.get(key) || 0; }
   async addSpend(add) { for (const [k, v] of Object.entries(add)) this.usd.set(k, Math.max(0, (this.usd.get(k) || 0) + v)); }
   async get(id) { const p = this.posts.get(id); return p && { ...p, images: [...(p.images || [])] }; }
@@ -465,6 +479,8 @@ export class ForumStore {
     // one row per image, at most about 1.33 MB of base64 (a row may hold 2 MB)
     sql.exec("CREATE TABLE IF NOT EXISTS images (id TEXT PRIMARY KEY, post TEXT NOT NULL, device TEXT, mime TEXT, size INTEGER, at INTEGER, data TEXT)");
     sql.exec("CREATE INDEX IF NOT EXISTS images_post ON images (post)");
+    // translations made on request (translate.js): k = "<forum|board>:<post id>:<zh|en>", hash = the fingerprint of the text translated
+    sql.exec("CREATE TABLE IF NOT EXISTS translations (k TEXT PRIMARY KEY, hash TEXT NOT NULL, title TEXT, body TEXT, at INTEGER)");
   }
 
   static row(r) { return r && { ...r, images: JSON.parse(r.images || "[]") }; }
@@ -521,6 +537,18 @@ export class ForumStore {
   async sweepImages(before) { this.sql.exec("DELETE FROM images WHERE post = '' AND at < ?", before); }
 
   async imageBytes() { return this.sql.exec("SELECT COALESCE(SUM(size), 0) AS n FROM images").toArray()[0].n; }
+
+  async getTr(key) { return this.sql.exec("SELECT hash, title, body, at FROM translations WHERE k = ?", key).toArray()[0]; }
+
+  async putTr(key, t) {
+    this.sql.exec(`INSERT INTO translations (k, hash, title, body, at) VALUES (?, ?, ?, ?, ?)
+                   ON CONFLICT (k) DO UPDATE SET hash = excluded.hash, title = excluded.title, body = excluded.body, at = excluded.at`,
+                  key, t.hash, t.title, t.body, t.at);
+  }
+
+  async dropTr(prefix) {   // every language of one post: prefix is "<forum|board>:<post id>:"
+    this.sql.exec("DELETE FROM translations WHERE substr(k, 1, ?) = ?", prefix.length, prefix);
+  }
 }
 
 export class Forum {
@@ -534,7 +562,7 @@ export class Forum {
 
 // ---------------------------------------------------------------- HTTP routes (called from worker.js)
 
-async function forum(env, msg) {
+export async function forum(env, msg) {
   const stub = env.FORUM.get(env.FORUM.idFromName("forum"));
   const r = await stub.fetch("https://forum/api", { method: "POST", body: JSON.stringify(msg) });
   return { status: r.status, data: await r.json() };

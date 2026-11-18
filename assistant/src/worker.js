@@ -15,7 +15,8 @@ import { SITE, validate, signSession, verifySession, hashKey, answer, RESERVE_US
 import { reviewsApi } from "./reviews.js";
 import { ADMIN_HTML } from "./admin.js";
 import { boardApi, validate as validateBoard, moderate } from "./board.js";
-import { forumGet, forumPost, forumImage, forumAdmin, isForumAdmin } from "./forum.js";
+import { forumGet, forumPost, forumImage, forumAdmin, isForumAdmin, forum } from "./forum.js";
+import { translateRoute } from "./translate.js";
 
 const MAX_BODY = 20000;
 let cached = { at: 0, index: null, catalog: null, fetcher: null };
@@ -72,6 +73,12 @@ async function forgetBoard(request) {   // after a new live post, a hidden one o
   if (typeof caches !== "undefined") await caches.default.delete(boardKey(request));
 }
 
+// a wall note that is hidden or removed loses its translations; they are kept with the forum's (translate.js)
+async function dropWallTranslations(env, ids) {
+  try { await forum(env, { op: "tr_drop", prefixes: ids.map((id) => `board:${String(id)}:`) }); }
+  catch (e) { console.log("dropping translations failed:", e && e.message); }   // never served for a note that is not live anyway
+}
+
 async function boardListRoute(request, env) {
   const cache = typeof caches !== "undefined" ? caches.default : null;
   const key = boardKey(request);
@@ -90,7 +97,7 @@ async function boardPostRoute(body, request, env, deps, origin, path) {
   const device = await hashKey("device", String(body.device || "").slice(0, 100) || crypto.randomUUID(), salt);
   if (path === "/board/report") {
     const r = await board(env, { op: "report", id: body.id, device });
-    if (r.data.hidden) await forgetBoard(request);
+    if (r.data.hidden) { await forgetBoard(request); await dropWallTranslations(env, [body.id]); }
     return json(r.data, r.status, origin);
   }
   if (!(await turnstileOk(env, body.turnstile, ip, deps.fetch || fetch))) {
@@ -143,6 +150,7 @@ async function adminRoute(request, env, deps) {
   if (boardOps[body.op]) {
     const r = await board(env, { op: boardOps[body.op], ids: body.ids });
     if (body.op !== "board_list") await forgetBoard(request);
+    if (body.op === "board_remove") await dropWallTranslations(env, body.ids || []);
     return new Response(JSON.stringify(r.data), { status: r.status, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
   }
   const ops = new Set(["list", "keep", "drop", "summary", "lecturers", "import"]);
@@ -235,7 +243,7 @@ export async function handle(request, env, deps = {}) {
   const origin = request.headers.get("Origin") || "";
   if (!allowed.includes(origin)) return new Response("forbidden", { status: 403 });
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: headers(origin) });
-  const routes = ["/chat", "/vote", "/board/post", "/board/report", "/forum/post", "/forum/report", "/forum/withdraw", "/forum/img"];
+  const routes = ["/chat", "/vote", "/board/post", "/board/report", "/forum/post", "/forum/report", "/forum/withdraw", "/forum/img", "/translate"];
   if (request.method !== "POST" || !routes.includes(path)) return json({ error: "not found" }, 404, origin);
   if (path === "/forum/img") {   // an image for a blog post: raw bytes, not JSON
     return forumImage(request, env, deps, origin, { json, turnstileOk });
@@ -245,6 +253,17 @@ export async function handle(request, env, deps = {}) {
   let body;
   try { body = JSON.parse(raw); } catch { return json({ error: "bad json" }, 400, origin); }
   if (path.startsWith("/board/")) return boardPostRoute(body, request, env, deps, origin, path);
+  if (path === "/translate") {   // a post in the reader's language, on request; stored after the first time (translate.js)
+    return translateRoute(body, request, env, deps, origin, {
+      json, forum: (msg) => forum(env, msg),
+      client: () => deps.client || new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 1, timeout: 60_000 }),
+      wallNote: async (id) => {   // the text of a live note on the opportunity wall
+        const r = await board(env, { op: "list" });
+        const p = r.status === 200 && (r.data.posts || []).find((x) => x.id === id);
+        return p ? { title: p.title || "", body: p.body || "" } : null;
+      },
+    });
+  }
   if (path.startsWith("/forum/")) {
     const client = () => deps.client || new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 1, timeout: 30_000 });
     return forumPost(body, request, env, deps, origin, path, { json, turnstileOk, siteData, client });

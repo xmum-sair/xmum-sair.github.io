@@ -120,6 +120,56 @@
   // for the other scripts: the current language, and one half of a pair for confirm() and the like
   window.siteLang = { get: lang, pick: pick, say: function (zh, en) { return lang() === 'en' ? en : zh; } };
 
+  // 0b. a visitor's post in the reader's language, on request. The page asks the Worker (POST /translate): the first
+  //     reader of a post has it translated, everyone after gets the stored translation. The button shows only when the
+  //     post is not in the language the page is in.
+  //     o: { url (the Worker's /translate), src ('forum' | 'board'), id, device, title (element or null), body (element),
+  //          text: { title, body }, draw(bodyElement, text), slot (where the button goes) }
+  window.siteTranslate = function (o) {
+    var foreign = function () {   // Chinese text on an English page, or text without Chinese on a Chinese page
+      var s = (o.text.title || '') + ' ' + o.text.body, han = (s.match(/[\u3400-\u9fff]/g) || []).length, latin = (s.match(/[A-Za-z]/g) || []).length;
+      return lang() === 'en' ? han >= 4 && han * 4 >= latin : han < 4 && latin >= 12;
+    };
+    var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'linkish tr-btn';
+    var note = document.createElement('small'); note.className = 'muted tr-note'; note.hidden = true;
+    note.textContent = '机器翻译，仅供参考 | Machine translation: check the original for anything that matters';
+    var done = {}, shown = null;   // translations fetched on this page, by language; the one on screen
+    var show = function (t) {
+      if (o.title && (t.title || !shown)) o.title.textContent = t.title || o.text.title;
+      while (o.body.firstChild) o.body.removeChild(o.body.firstChild);
+      o.draw(o.body, t.body);
+    };
+    var paint = function () {
+      btn.hidden = !shown && !foreign();
+      btn.textContent = shown ? '看原文 | Show original' : '翻译 | Translate';
+      note.hidden = !shown;
+    };
+    btn.addEventListener('click', function () {
+      if (shown) { shown = null; show(o.text); paint(); return; }
+      var to = lang();
+      var use = function (t) { done[to] = t; shown = to; show(t); paint(); };
+      if (done[to]) { use(done[to]); return; }
+      btn.disabled = true; btn.textContent = '翻译中… | Translating…';
+      fetch(o.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ src: o.src, id: o.id, to: to, device: o.device }) })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.status === 200, d: d }; }); })
+        .then(function (r) {
+          btn.disabled = false;
+          if (r.ok && r.d.body) { use({ title: r.d.title || '', body: r.d.body }); return; }
+          paint(); note.hidden = false; note.textContent = r.d.message || '这次没翻成，稍后再试 | The translation did not work; try again later';
+        })
+        .catch(function () { btn.disabled = false; paint(); note.hidden = false; note.textContent = '连不上翻译服务，稍后再试 | Cannot reach the translation service; try again later'; });
+    });
+    document.addEventListener('site:lang', function () {   // the reader switched language: back to the original, then see whether it needs translating
+      if (!btn.isConnected) return;
+      if (shown) { shown = null; show(o.text); }
+      note.textContent = '机器翻译，仅供参考 | Machine translation: check the original for anything that matters';
+      paint();
+    });
+    paint();
+    o.slot.appendChild(btn); o.slot.appendChild(note);
+    return btn;
+  };
+
   // 1. mark the header block that covers the current URL; a programme page also lights up the Courses block
   var here = location.pathname.replace(/\/index\.html$/, '/').replace(/\/blog\/$/, '/qa/');   // the blog sits under Discussion
   var best = null;

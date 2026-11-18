@@ -282,6 +282,15 @@
     return span;
   }
 
+  // the Translate button of one thread, reply or blog post (static/site.js; the Worker keeps each translation after the first request)
+  function translator(slot, item, titleEl, bodyEl, draw) {
+    if (!window.siteTranslate) return;
+    var span = mk('span', 'post-actions tr-row');
+    window.siteTranslate({ url: API.replace(/\/forum$/, '') + '/translate', src: 'forum', id: item.id, device: device(), title: titleEl, body: bodyEl,
+                           text: { title: titleEl ? item.title : '', body: item.body }, draw: draw, slot: span });
+    slot.appendChild(span);
+  }
+
   function author(head, name, op, at) {
     head.appendChild(name ? ut(mk('strong', '', name)) : mk('strong', '', '匿名同学 | Anonymous'));
     if (op) head.appendChild(mk('span', 'badge', '楼主 | OP'));
@@ -300,6 +309,7 @@
       a.appendChild(h);
       var bd = ut(mk('div', 'post-body')); linkify(bd, r.body); a.appendChild(bd);
       a.appendChild(actions(r, t.id, onGone));
+      translator(a, r, null, bd, linkify);
       box.appendChild(a);
     });
     box.appendChild(form({ thread: t.id, comment: t.type === 'post' }, function (r) { if (r.status === 'live') reopen(); }));
@@ -321,20 +331,21 @@
   function drawThread(box, d) {
     clear(box);
     var t = d.thread, b = board(t.board), c = t.course && course(t.course);
-    document.title = t.title + ' | 讨论区';
+    document.title = t.title + ' · 讨论区 | Discussion';
     var top = mk('p', 'dlg-cat');
-    var bl = mk('a', '', b.icon + ' ' + b.zh); bl.href = QA + '?board=' + b.key; top.appendChild(bl);
+    var bl = mk('a', '', nm(b)); bl.href = QA + '?board=' + b.key; top.appendChild(bl);
     if (t.course) {
       top.appendChild(document.createTextNode(' · '));
       var cl = mk(c ? 'a' : 'span', '', t.course + (c ? ' ' + c.name : '')); if (c) cl.href = c.url; top.appendChild(cl);
     }
     box.appendChild(top);
-    box.appendChild(ut(mk('h2', 'thread-h', t.title)));
+    var th = ut(mk('h2', 'thread-h', t.title)); box.appendChild(th);
     var first = mk('article', 'post post-op');
     var head = mk('p', 'post-head'); author(head, t.author, true, when(t.at)); first.appendChild(head);
     var body = ut(mk('div', 'post-body')); linkify(body, t.body); first.appendChild(body);
     var gone = function (all) { if (all) { renderFull(); refresh(); } else openThread(t.id, false); };
     first.appendChild(actions(t, t.id, gone));
+    translator(first, t, th, body, linkify);
     box.appendChild(first);
     replies(box, d, function () { openThread(t.id, false); }, gone);
   }
@@ -355,19 +366,20 @@
   function drawPost(box, d) {
     clear(box);
     var t = d.thread, c = cat(t.board), cr = t.course && course(t.course);
-    document.title = t.title + ' | 博客';
+    document.title = t.title + ' · 博客 | Blog';
     var top = mk('p', 'dlg-cat');
-    var cl = mk('a', '', c.icon + ' ' + c.zh); cl.href = BLOG + '?cat=' + c.key; top.appendChild(cl);
+    var cl = mk('a', '', nm(c)); cl.href = BLOG + '?cat=' + c.key; top.appendChild(cl);
     if (t.course) {
       top.appendChild(document.createTextNode(' · '));
       var ca = mk(cr ? 'a' : 'span', '', t.course + (cr ? ' ' + cr.name : '')); if (cr) ca.href = cr.url; top.appendChild(ca);
     }
     box.appendChild(top);
-    box.appendChild(ut(mk('h1', 'blog-title', t.title)));
+    var bt = ut(mk('h1', 'blog-title', t.title)); box.appendChild(bt);
     box.appendChild(mk('p', 'blog-meta', [t.author || '匿名同学 | Anonymous', when(t.at), t.minutes + ' 分钟读完 | ' + t.minutes + ' min read'].join(' · ')));
     var body = ut(mk('div', 'blog-body')); markdown(body, t.body, imgUrl); box.appendChild(body);
     var gone = function (all) { if (all) { go(); renderBlog(); refresh(); } else openPost(t.id, false); };
     box.appendChild(actions(t, t.id, gone));
+    translator(box, t, bt, body, function (el, text) { markdown(el, text, imgUrl); });
     var talk = mk('section', 'blog-comments'); box.appendChild(talk);
     replies(talk, d, function () { openPost(t.id, false); }, gone);
   }
