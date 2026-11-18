@@ -142,6 +142,9 @@ def test_course_page_order_and_cleanup():
     assert "Mounir Nisse" in details and "LucasXQY" in details and "2023-04" in details
     assert "考核 / Assessment" not in details and "备注 / Notes" not in details      # columns empty in every row are hidden
     assert ">Past-Papers</a>" not in details and ">2021-09</a>" not in details        # no folder links; the files section has them
+    head = ["学期 / Session", "备注 / Notes"]                                           # a link to a file is a note and stays
+    cell = "[Past-Papers](2021-09/Past-Papers/) · [2021-09](2021-09) · 量表 [Rubric](2021-09/Handbooks/X_Rubric.pdf) · [笔记](2021-09/Tips/X_Tips.md)"
+    assert build._session_cells(head, 1, cell) == "量表 [Rubric](2021-09/Handbooks/X_Rubric.pdf) · [笔记](2021-09/Tips/X_Tips.md)"
     com106 = (out / "EEE/COM106_Electrical_Engineering/index.html").read_text(encoding="utf-8")
     assert "COM111" in com106[:com106.index('id="review"')] and '<h2 id="qa">讨论 | Discussion</h2>' in com106                        # the code-change note stays at the top
     assert "习题仅保留题目" in com106[com106.index('id="details"'):]
@@ -550,7 +553,7 @@ def test_discussion_area_needs_no_github():
     assert [b["key"] for b in data["boards"]] == [b["key"] for b in boards] and all(b["zh"] in qa for b in boards)
     assert data["courses"]["COM107"]["url"] == P + "EEE/COM107_Circuits_and_Devices/"
     assert "discussions/new" not in qa and "giscus" not in qa and "不用登录" in qa and "举报" in qa
-    assert build.GH + "/discussions" in qa                                       # the old posts, read-only
+    assert build.GH + "/discussions" not in qa                                   # GitHub Discussions is switched off: no dead link
     assert qa.count('class="forum-app"') == 1 and "static/forum.js" in qa
     for page_file in out.rglob("*.html"):
         assert "giscus" not in page_file.read_text(encoding="utf-8"), page_file

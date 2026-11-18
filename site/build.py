@@ -683,7 +683,8 @@ SEPARATOR_RE = re.compile(r"^\s*\|[\s:|-]+\|\s*$")
 INSTRUCTION_RE = re.compile(r"每个修读学期一行|One row per session")         # the course README template's note to contributors
 EMPTY_BULLET_RE = re.compile(r"^\s*[-*]\s*[^：:\[\]]{1,40}[：:]\s*$")        # "- 小贴士 / Tips：" with nothing after it
 NOTICE_RE = re.compile(r"^\s*[-*]\s*代码变更")                               # a code-change note belongs at the top of the page
-FOLDER_LINK_RE = re.compile(r"^\[[^\]]*\]\((?:\d{4}-\d{2}|unknown)/[^)]*\)$")  # "[Past-Papers](2021-09/Past-Papers/)"
+# "[Past-Papers](2021-09/Past-Papers/)": a session or type folder. A link to a file inside one is a note and stays.
+FOLDER_LINK_RE = re.compile(r"^\[[^\]]*\]\((?:\d{4}-\d{2}|unknown)(?:/(?:%s))?/?\)$" % "|".join(SUBS))
 
 
 def _md_cells(line: str) -> list[str]:
@@ -856,7 +857,7 @@ def course_table_html(site: Site, courses: list[Course]) -> str:
 
 def file_item(f: File) -> str:
     links = ""
-    if f.name.lower().endswith(".pdf"):
+    if f.name.lower().endswith((".pdf", ".md")):   # GitHub shows both in the browser
         links += f' <a class="btn" href="{GH}/blob/main/{url_path(f.path)}">预览 | Preview</a>'
     links += f' <a class="btn" href="{RAW}/{url_path(f.path)}">下载 | Download</a>'
     return f'<li><span class="fname">{esc(f.name)}</span> <small>{human_size(f.size)}</small>{links}</li>'
@@ -1158,11 +1159,7 @@ def qa_page(site: Site) -> str:
             f"<p>一帖一问，按话题分板块：{names}。提到某门课的帖子也会出现在那门课的页面上。"
             "<br>One question per thread, sorted into boards by topic; a thread about one course also shows on that course's page.</p>")
     rules = f'<details class="board-how"><summary>怎么发言、怎么审核 | How posting and checking work</summary>{FORUM_RULES}</details>'
-    archive = ('<h2 id="earlier">旧讨论区 | Earlier discussions</h2>'
-               f'<p class="muted">改版前在 GitHub 上的帖子留作只读存档：<a href="{GH}/discussions">GitHub 讨论区</a>。新问题请在上面发帖。'
-               f'<br>Posts from before, on GitHub, are kept as a read-only archive: <a href="{GH}/discussions">GitHub Discussions</a>. '
-               'Please start new threads above.</p>')
-    return page(site, "讨论区 | Discussion", community_tabs(site, "qa") + f'<div class="forum-intro">{head}{rules}</div>' + forum_html(site, "full") + archive,
+    return page(site, "讨论区 | Discussion", community_tabs(site, "qa") + f'<div class="forum-intro">{head}{rules}</div>' + forum_html(site, "full"),
                 "按话题分板块的讨论区，不用登录 | discussion boards, no login")
 
 
