@@ -12,6 +12,7 @@
 var l=null;try{l=localStorage.getItem('lang')}catch(e){}
 if(l!=='zh'&&l!=='en')l=/^zh/i.test((navigator.languages&&navigator.languages[0])||navigator.language||'')?'zh':'en';
 d.setAttribute('data-lang',l);d.lang=l==='en'?'en':'zh-Hans'})(document.documentElement)</script>
+<script src="${base}static/site.js" defer></script>
 </head>
 <body data-base="$base">
 <header class="site-header">
@@ -26,7 +27,6 @@ $content
   <p class="footer-links"><a href="${base}disclaimer/">免责声明 | Disclaimer</a> · <a href="${base}recent/">最近上传 | Recent</a> · <a href="${base}feed.xml">RSS</a> · <a href="https://github.com/xmum-sair/xmum-sair.github.io">GitHub</a> · <a href="mailto:xieqiyi@ieee.org">联系 | Contact</a> · <span class="muted">访问统计用 GoatCounter，不设 cookie、不存个人信息 | Analytics by GoatCounter: no cookies, no personal data</span></p>
   <p class="ciallo">Ciallo～ (∠・ < )⌒☆</p>
 </footer>
-<script src="${base}static/site.js" defer></script>
 <script src="${base}static/search.js" defer></script>
 <script src="${base}static/ratings.js" defer></script>
 $assistant

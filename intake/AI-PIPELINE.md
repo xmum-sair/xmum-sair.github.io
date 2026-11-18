@@ -153,7 +153,8 @@ Builds on the upload channel in DESIGN.md and replaces its "Claude pre-check" se
 | `helper`（小帮手，Worker 里计） | 60 | 2 | 每人每天 15 个问题不变 |
 | `haiku`（审核、知识点索引） | 10 | 2 | |
 | `forum`（讨论区和博客的发帖与图片审核，Worker 里计，2026-11-07） | 5 | 0.5 | 每天 400 次不变 |
-| 备用（不分配） | 15 | | |
+| `translate`（帖子按需翻译，Worker 里计，2026-11-18；译文存下后再看不花钱，从预留里出） | 3 | 0.3 | 每个网络每天 200 篇新翻译，每个浏览器 40 篇 |
+| 备用（不分配） | 12 | | |
 
 - **记账**：每次调用后按 API 返回的 `usage`（输入、输出、缓存写、缓存读 token）和实际服务的模型（`response.model`）乘单价算出美元。单价表只有一份：`llm/prices.json`，`llm/claude_check.py`（Python）和 `assistant/src/core.js`（Worker）都从它读，不存在两份对不上的问题。
 - **GitHub 上的机器人**：`claude-usage.json`（bot-state 分支）改成按池子记当天和当月的美元数。为了不对 GitHub API 写几百次，采用"先按批预留、跑完一次结算"：每一批调用前按页数估算并预留，超过上限就不预留、这批文件标"额度用完"；跑完按实际花费结算多退少补。

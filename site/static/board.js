@@ -160,7 +160,7 @@
     d.className = 'board-dialog dlg-' + p.cat;
     d.appendChild(closeBtn(d));
     d.appendChild(mk('p', 'dlg-cat', nm(c) + (closed(p) ? ' · 已截止 | closed' : '')));
-    d.appendChild(own(p, mk('h2', '', words(p, p.title))));
+    var h = own(p, mk('h2', '', words(p, p.title))); d.appendChild(h);
     var dl = mk('dl', 'dlg-fields');
     ['org', 'location', 'mode', 'pay', 'deadline', 'contact', 'link', 'code'].forEach(function (k) {
       var v = p.fields[k];
@@ -189,6 +189,12 @@
       foot.appendChild(document.createTextNode(' · ')); foot.appendChild(rep);
     }
     d.appendChild(foot);
+    if (!curated(p) && window.siteTranslate) {   // a student's note in the reader's language, on request (static/site.js)
+      var tr = mk('p', 'dlg-foot tr-row');
+      window.siteTranslate({ url: app.dataset.board.replace(/\/board$/, '') + '/translate', src: 'board', id: p.id, device: device(), title: h, body: body,
+                             text: { title: p.title, body: p.body }, draw: linkify, slot: tr });
+      d.appendChild(tr);
+    }
     if (p.kind === 'opp') d.appendChild(mk('p', 'dlg-note', '信息由发布者提供，申请前请自行核实；任何要你先交钱的都是骗局。| Posted by students: check before you apply. Anything that asks you to pay first is a scam.'));
     if (typeof d.showModal === 'function') d.showModal(); else d.setAttribute('open', '');
     try { history.replaceState(null, '', '?p=' + encodeURIComponent(p.id)); } catch (e) { /* file:// */ }

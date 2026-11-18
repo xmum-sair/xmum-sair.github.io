@@ -8,6 +8,7 @@
 ## v6 · 2026-11-18
 
 - 右上角可以切换中文和英文：第一次打开跟着你的系统语言走，选过之后会记住；课程名保持原样 | Switch between Chinese and English at the top right: the first visit follows your system language, and your choice is remembered; course names stay as they are
+- 讨论区、博客和机会墙的帖子下面有「翻译」：不是你正在用的语言时，点一下就翻成中文或英文（机器翻译，第一次有人点时翻好并存下，之后直接显示） | Posts in the discussion area, the blog and the opportunity wall have a Translate button when they are not in the language you are reading in (machine translation: made the first time someone asks, then kept)
 
 ## v5 · 2026-11-07
 
