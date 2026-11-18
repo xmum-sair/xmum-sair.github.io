@@ -5,6 +5,10 @@
      Add a section at the top for every release: "## vN · YYYY-MM-DD", then one line per item, "Chinese | English",
      saying what students can now do, as short as possible. The home page shows the first three items of the newest section. -->
 
+## v6 · 2026-11-18
+
+- 右上角可以切换中文和英文：第一次打开跟着你的系统语言走，选过之后会记住；课程名保持原样 | Switch between Chinese and English at the top right: the first visit follows your system language, and your choice is remembered; course names stay as they are
+
 ## v5 · 2026-11-07
 
 - [上传](/upload/)更省事：选专业、拖文件就行，机器人用 AI 认出每个文件的课程、学期和类型，自动改名归位 | [Uploading](/upload/) is simpler: pick your programme and drop your files; the bot works out each file's course, session and type with AI and files it

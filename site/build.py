@@ -29,6 +29,9 @@ from urllib.parse import quote, unquote
 
 import markdown
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import i18n  # noqa: E402  (site/i18n.py: marks the Chinese and English halves of every page)
+
 REPO = "xmum-sair/xmum-sair.github.io"
 GH = f"https://github.com/{REPO}"
 RAW = f"https://raw.githubusercontent.com/{REPO}/main"
@@ -83,6 +86,13 @@ class Course:
     taken_in: list[str] = field(default_factory=list)
     lecturers: dict[str, str] = field(default_factory=dict)
     contributors: dict[str, str] = field(default_factory=dict)   # session → the README's 资料来自 cell
+
+
+def bi(zh: str, en: str, sep: str = " | ") -> str:
+    """A Chinese and English pair marked by hand (site/i18n.py marks the plain "中文 | English" ones by itself): for a
+    pair with a shared value next to it, or one whose halves the automatic rule cannot tell apart."""
+    gap = f'<span class="l-sep">{sep}</span>' if sep else ""
+    return f'<span class="l-zh">{zh}</span>{gap}<span class="l-en">{en}</span>'
 
 
 def warn(msg: str) -> None:
@@ -374,13 +384,13 @@ def recent_html(entries: list[dict], compact: bool = False) -> str:
         return "<p>暂时无法读取上传记录 | Upload history is not available right now.</p>"
     items = []
     for e in entries:
-        by = f" · 来自 | by {esc(e['by'])}" if e["by"] else ""
+        by = f" · {bi('来自', 'by')} {esc(e['by'])}" if e["by"] else ""
         if compact:   # programme pages: date, course, what was added
             items.append(f'<li><time datetime="{e["date"]}">{e["date"][5:]}</time> <a href="{e["url"]}">{esc(e["code"])} {esc(e["name"])}</a> '
                          f'<small>+{e["n"]} {esc(e["type"])} · {esc(e["session"])}</small></li>')
             continue
         items.append(f'<li><time datetime="{e["date"]}">{e["date"]}</time> <a href="{e["url"]}">{esc(e["code"])} {esc(e["name"])}</a> '
-                     f'<small>{esc(e["session"])} · {esc(e["type"])} · {e["n"]} 份 | files{by}</small></li>')
+                     f'<small>{esc(e["session"])} · {esc(e["type"])} · {e["n"]} {bi("份", "files")}{by}</small></li>')
     return f'<ul class="recent{" compact" if compact else ""}">{"".join(items)}</ul>'
 
 
@@ -419,7 +429,8 @@ def wanted_page(site: Site) -> str:
         return f'<li><a href="{site.prefix}{c.path}/">{esc(c.code)} {esc(c.name)}</a>{extra}</li>'
 
     def section(title: str, items: list[str]) -> str:
-        return f"<h3>{title}（{len(items)}）</h3>" + (f"<ul>{''.join(items)}</ul>" if items else "<p>无 | none</p>")
+        zh, en = title.split(" | ")
+        return f"<h3>{bi(zh, en)} ({len(items)})</h3>" + (f"<ul>{''.join(items)}</ul>" if items else "<p>无 | none</p>")
 
     parts.append(forum_html(site, "requests"))   # material requests from the discussion area, filled by static/forum.js
 
@@ -427,15 +438,15 @@ def wanted_page(site: Site) -> str:
         cs = [c for c in site.courses if c.prog == prog]
         if not cs:
             continue
-        empty = [item(c, f' <small>修课学期 | taken in {esc("、".join(c.taken_in))}</small>' if c.taken_in else "")
+        empty = [item(c, f' <small>{bi("修课学期", "taken in")} {esc("、".join(c.taken_in))}</small>' if c.taken_in else "")
                  for c in cs if not c.sessions]
         no_papers = [item(c) for c in cs if c.sessions and not any("Past-Papers" in types for types in c.sessions.values())]
         gaps = [item(c, f" <small>· {esc(s)}</small>") for c in cs for s in c.taken_in if s not in c.sessions]
-        parts.append(f"<h2>{prog} · {esc(pname)}</h2>"
+        parts.append(f"<h2>{prog} · {bi(*map(esc, pname.split(' | ')))}</h2>"
                      + section("还没有任何资料 | No material at all", empty)
                      + section("缺空白试卷 | No past papers yet", no_papers)
                      + section("有人修过、但那个学期还没资料 | Sessions someone took that are not covered", gaps))
-    parts.append("<p>⬜ 征集中 / wanted 也会标在各专业页的课程索引里。| The programme pages mark courses without material as wanted too.</p>")
+    parts.append("<p>各专业页的课程索引里，没有资料的课也标着「⬜ 征集中」。| The programme pages mark courses without material as wanted too.</p>")
     return page(site, "征集榜 | Wanted", "".join(parts))
 
 
@@ -487,7 +498,7 @@ def upload_page(site: Site) -> str:
         f'<form id="up-form" class="up-form" data-form="{UPLOAD_URL}" novalidate>'
         '<details class="up-hints"><summary>给机器人的提示（选填）<small>Hints for the bot (optional)</small></summary>'
         '<label for="up-code">课程代码 | Course code</label>'
-        '<input id="up-code" list="up-codes" autocomplete="off" placeholder="例如 COM107、MPU1.1、G0191 | e.g. COM107">'
+        '<input id="up-code" list="up-codes" autocomplete="off" placeholder="例如 COM107、MPU1.1、G0191 | e.g. COM107, MPU1.1, G0191">'
         f'<datalist id="up-codes">{codes}</datalist>'
         '<p id="up-course-note" class="hint" aria-live="polite"></p>'
         '<div id="up-name-row"><label for="up-name">课程名称 | Course name</label>'
@@ -533,8 +544,8 @@ def prog_cards(site: Site) -> str:
     for prog, name in PROGS.items():
         cs = [c for c in site.courses if c.prog == prog]
         n_mat, n_files = sum(1 for c in cs if c.sessions), len(all_files(cs))
-        head = f"{PROG_ICONS[prog]} {prog}" if prog != "GE" else f"{PROG_ICONS[prog]} 公共课"
-        cards.append(f'<a class="card" href="{site.prefix}{prog}/"><h3>{head}</h3><p>{esc(name)}</p>'
+        head = f"{PROG_ICONS[prog]} {prog}" if prog != "GE" else f"{PROG_ICONS[prog]} {bi('公共课', 'University-wide')}"
+        cards.append(f'<a class="card" href="{site.prefix}{prog}/"><h3>{head}</h3><p>{bi(*map(esc, name.split(" | ")))}</p>'
                      f'<p class="stats">{n_mat} / {len(cs)} 门课有资料 · {n_files} 份文件<br>'
                      f'{n_mat} of {len(cs)} courses with material · {n_files} files</p></a>')
     return f'<div class="cards">{"".join(cards)}</div>'
@@ -575,9 +586,10 @@ def rate_page(site: Site) -> str:
     """Search a course and lecturer, then rate on this page: posted to the Worker, no GitHub account (static/rate.js)."""
     def scale(key: str, zh: str, en: str, lo: str, hi: str, optional: bool) -> str:
         opts = "".join(f'<label><input type="radio" name="{key}" value="{n}"><span>{n}</span></label>' for n in range(1, 6))
-        skip = f'<label class="skip"><input type="radio" name="{key}" value="" checked><span>不评 Skip</span></label>' if optional else ""
-        return (f'<fieldset class="scale"><legend>{zh} | {en}{"" if optional else " *"}</legend>'
-                f'<div class="scale-row"><small>1 {esc(lo)}</small>{opts}<small>5 {esc(hi)}</small>{skip}</div></fieldset>')
+        skip = f'<label class="skip"><input type="radio" name="{key}" value="" checked><span>{bi("不评", "Skip", " ")}</span></label>' if optional else ""
+        ends = [bi(*map(esc, label.split(" ", 1)), " ") for label in (lo, hi)]
+        return (f'<fieldset class="scale"><legend>{bi(zh, en)}{"" if optional else " *"}</legend>'
+                f'<div class="scale-row"><small>1 {ends[0]}</small>{opts}<small>5 {ends[1]}</small>{skip}</div></fieldset>')
     years = "".join(f'<option value="{y}">{y}</option>' for y in range(datetime.date.today().year + 1, 2017, -1))
     codes = "".join(f'<option value="{esc(c.code)}">{esc(c.name)}</option>' for c in sorted(site.courses, key=lambda c: c.code))
     main = "".join(scale(*d, optional=False) for d in RATE_DIMS[:4])
@@ -597,7 +609,7 @@ def rate_page(site: Site) -> str:
         '<label for="rate-lecturer">老师 | Lecturer *</label>'
         '<input id="rate-lecturer" list="rate-lects" maxlength="80" autocomplete="off" required placeholder="名单里没有的可以直接写 | type a name not on the list">'
         '<datalist id="rate-lects"></datalist>'
-        '<label for="rate-year">修课学期 | Session（可不填 | optional）</label><div class="up-row">'
+        '<label for="rate-year">修课学期（可不填）| Session (optional)</label><div class="up-row">'
         f'<select id="rate-year" aria-label="年份 | Year"><option value="">年份 | Year</option>{years}</select>'
         '<select id="rate-term" aria-label="学期 | Term"><option value="">学期 | Term</option><option value="02">02</option>'
         '<option value="04">04</option><option value="09">09</option><option value="other">其他 | Other</option></select>'
@@ -794,10 +806,12 @@ def template() -> Template:
 
 
 def nav_block(i: int, href: str, icon: str, main: str, sub: str, cls: str = "", attrs: str = "") -> str:
-    """One header block: icon on the left, two-line label (Chinese over English) on the right."""
+    """One header block: icon on the left, two-line label on the right (Chinese over English; one line once the
+    visitor's language is known). `main` and `sub` are HTML. A name that is the same in both languages (EEE, GitHub)
+    is the main line, with its Chinese gloss marked as Chinese only."""
     return (f'<a class="nb{(" " + cls) if cls else ""}" href="{href}"{attrs} style="--i:{i}">'
             f'<span class="nb-ic" aria-hidden="true">{icon}</span>'
-            f'<span class="nb-t">{esc(main)}<small>{esc(sub)}</small></span></a>')
+            f'<span class="nb-t">{main}{f"<small>{sub}</small>" if sub else ""}</span></a>')
 
 
 def nav_html(site: Site) -> str:
@@ -806,15 +820,23 @@ def nav_html(site: Site) -> str:
         href = path if path.startswith("http") else f"{site.prefix}{path}"
         cls = "upload" if path == "upload/" else ""
         attrs = ' data-menu="nav-courses" aria-controls="nav-courses" aria-expanded="false"' if path == "courses/" else ""
+        if path.startswith("http"):   # GitHub / 仓库: the name stays, the gloss is Chinese only
+            main, sub = esc(main), f'<span class="l-zh">{esc(sub)}</span>'
+        else:
+            main, sub = bi(esc(main), esc(sub), ""), ""
         blocks.append(nav_block(i, href, icon, main, sub, cls, attrs))
     # the Courses block opens this row (site.js); without script the link goes to the overview page
-    subs = [nav_block(i, f"{site.prefix}{p}/", PROG_ICONS[p], *((p, PROGS[p].split(" | ")[0]) if p != "GE" else ("公共课", "G 选修 · MPU")))
+    subs = [nav_block(i, f"{site.prefix}{p}/", PROG_ICONS[p],
+                      *((p, bi(*map(esc, PROGS[p].split(" | ")))) if p != "GE"
+                        else (bi("公共课", "University-wide", ""), bi("G 选修 · MPU", "G electives · MPU"))))
             for i, p in enumerate(PROGS)]
-    subs.append(nav_block(len(subs), f"{site.prefix}courses/", "🗂️", "总览", "All courses"))
+    subs.append(nav_block(len(subs), f"{site.prefix}courses/", "🗂️", bi("总览", "All courses", ""), ""))
     form = (f'<form class="mini-search" action="{site.prefix}" method="get" role="search">'
             '<label class="sr-only" for="nav-q">搜索 | Search</label>'
             '<input id="nav-q" name="q" type="search" placeholder="搜索 | Search"></form>')
     tools = (f'<div class="tools">{form}'
+             '<button class="lang-toggle" type="button" aria-label="切换语言 | Switch language" title="切换语言 | Switch language">'
+             '<span class="l-zh">EN</span><span class="l-en">中</span></button>'
              '<button class="theme-toggle" type="button" aria-label="切换深浅色 | Toggle theme">🌙</button></div>')
     return (f'{tools}<nav class="nav-blocks" aria-label="主导航 | Main navigation">{"".join(blocks)}</nav>'
             f'<div class="nav-sub" id="nav-courses" hidden>{"".join(subs)}</div>')
@@ -846,7 +868,7 @@ def course_table_html(site: Site, courses: list[Course]) -> str:
     rows = []
     for c in courses:
         n = len(all_files([c]))
-        sessions = " · ".join("未知 unknown" if s == "unknown" else s for s in c.sessions) or "—"
+        sessions = " · ".join(bi("未知", "unknown", " ") if s == "unknown" else s for s in c.sessions) or "—"
         files = str(n) if n else '<span class="wanted">⬜ 征集中 | wanted</span>'
         rows.append(f'<tr><td>{esc(c.code)}</td><td><a href="{site.prefix}{c.path}/">{esc(c.name)}</a></td>'
                     f'<td class="sessions">{sessions}</td><td class="num">{files}</td></tr>')
@@ -869,7 +891,7 @@ def course_page(site: Site, c: Course) -> str:
     src = f"{c.path}/README.md"
     notices, details = course_readme_parts(c.readme) if c.readme else ("", "")
     top = (f"<h1>{esc(title)}</h1>"
-           f'<p class="meta"><a class="chip" href="{site.prefix}{c.prog}/">{PROG_ICONS[c.prog]} {c.prog} · {esc(PROGS[c.prog].split(" | ")[0])}</a> '
+           f'<p class="meta"><a class="chip" href="{site.prefix}{c.prog}/">{PROG_ICONS[c.prog]} {c.prog} · {bi(*map(esc, PROGS[c.prog].split(" | ")))}</a> '
            f'<a class="chip" href="{GH}/tree/main/{url_path(c.path)}">GitHub 文件夹 | Folder</a></p>')
     if notices:
         top += f'<div class="notice">{render_md(site, notices, src)}</div>'
@@ -878,7 +900,7 @@ def course_page(site: Site, c: Course) -> str:
         parts.append("<p>⬜ 征集中 / wanted</p>")
     for s, types in c.sessions.items():
         label = "未知学期 | unknown" if s == "unknown" else s
-        lect = f" · 老师 | Lecturer: {lecturer_links_html(site, c.lecturers[s])}" if s in c.lecturers else ""
+        lect = f" · {bi('老师', 'Lecturer')}: {lecturer_links_html(site, c.lecturers[s])}" if s in c.lecturers else ""
         zipb = (f' <a class="btn" href="{DOWNLOADS}/{url_path(c.code)}_{s}.zip" '
                 f'title="这个学期的全部文件打成一个 zip | Every file of this session in one zip">打包下载 | Download all</a>')
         parts.append(f'<h3 id="{s}">{label}{lect}{zipb}</h3>')
@@ -888,7 +910,7 @@ def course_page(site: Site, c: Course) -> str:
     rate = f"{site.prefix}rate/?code={quote(c.code)}" + (f"&lecturer={quote(lects[0])}" if len(lects) == 1 else "")
     review = '<h2 id="review">课程评价 | Course review</h2>' + ratings_html(f'data-code="{esc(c.code)}" data-known="{known_lecturers(site)}"', rate)
     info = ['<h2 id="details">课程信息 | Course details</h2>',
-            f'<p class="meta">修课学期 | Taken in: {"、".join(c.taken_in) or "—"}</p>']
+            f'<p class="meta">{bi("修课学期", "Taken in")}: {"、".join(c.taken_in) or "—"}</p>']
     if details:
         info.append(render_md(site, details, src))
     qa = f'<h2 id="qa">讨论 | Discussion</h2><p class="notice">{FORUM_NOTICE}</p>' + forum_html(site, "course", c.code)
@@ -918,8 +940,8 @@ def prog_page(site: Site, prog: str) -> str:
     newest = [e for e in getattr(site, "recent", []) if e.get("prog") == prog][:5]
     fresh = (f'<section class="fresh"><h2>🆕 最近新增 | Recently added</h2>{recent_html(newest, compact=True)}'
              f'<p class="more"><a href="{site.prefix}recent/">全部最近上传 | All recent uploads</a></p></section>') if newest else ""
-    content = (f"<h1>{PROG_ICONS[prog]} {prog} · {esc(PROGS[prog])}</h1><p class=\"lead\">{lead}</p>"
-               + fresh + body + f'<p class="meta">有新资料？{up} · <a href="{site.prefix}upload/">Upload</a></p>')
+    content = (f"<h1>{PROG_ICONS[prog]} {prog} · {bi(*map(esc, PROGS[prog].split(' | ')))}</h1><p class=\"lead\">{lead}</p>"
+               + fresh + body + f'<p class="meta">有新资料？{up} | New material? <a href="{site.prefix}upload/">Upload it</a></p>')
     return page(site, f"{prog} · {PROGS[prog]}", content, f"{prog} {PROGS[prog]} 课程索引 | course index")
 
 
@@ -959,13 +981,13 @@ def home_page(site: Site) -> str:
     stats = (f'<p class="stats home-stats">{with_mat} 门课有资料 · {len(files)} 份文件 · 全部免费 | '
              f'{with_mat} courses with material · {len(files)} files · all free</p>')
     content = (
-        '<section class="hero"><h1>XMUM SAIR 生存指南 <span>| Survival Guide</span></h1>'
+        f'<section class="hero"><h1>XMUM SAIR {bi("生存指南", "Survival Guide")}</h1>'
         "<p>SAIR 三个本科专业的开放资料库：空白试卷、大纲、作业、实验手册、笔记，同学自发整理，免费公开。"
         "<br><span class=\"muted\">An open, student-run archive for XMUM SAIR's three undergraduate programmes: past papers, "
         "syllabi, assignments, lab manuals and notes, all free.</span></p></section>"
         f'<form id="search" action="{site.prefix}" method="get" role="search">'
         '<label class="sr-only" for="q">搜索课程代码、课名、老师、知识点或文件名 | Search by course code, name, lecturer, topic or file name</label>'
-        '<input id="q" name="q" type="search" autocomplete="off" placeholder="课程代码、课名、老师、知识点… 如 COM107、傅里叶 | course, lecturer, topic"></form>'
+        '<input id="q" name="q" type="search" autocomplete="off" placeholder="课程代码、课名、老师、知识点… 如 COM107、傅里叶 | course, lecturer, topic… e.g. COM107, Fourier"></form>'
         + stats + '<div id="results" aria-live="polite"></div>'
         + news_strip(site)
         + f'<h2>课程 | Courses</h2>{prog_cards(site)}'
@@ -1015,7 +1037,7 @@ def news_strip(site: Site) -> str:
     if not rel:
         return ""
     r = rel[0]
-    items = "".join(f"<li>{inline_md(site, zh)}</li>" for zh, _ in r["items"][:3])
+    items = "".join(f"<li>{bi(inline_md(site, zh), inline_md(site, en))}</li>" for zh, en in r["items"][:3])
     return (f'<aside class="news-strip" aria-label="更新 | What\'s new"><p class="news-head">🆕 <b>{esc(r["version"])}</b> '
             f'<time datetime="{r["date"]}">{r["date"]}</time> · <a href="{site.prefix}news/">更新日志 | What\'s new</a></p>'
             f'<ul>{items}</ul></aside>')
@@ -1148,7 +1170,7 @@ FORUM_RULES = ("<ul><li>不用登录，不用 GitHub 账号；昵称可填可不
                "<br>Courses, study, careers and campus life only. No insults, personal attacks or politics; no answers or "
                "marking schemes; no one else's name, student ID, phone number or a lecturer's private contact details.</li>"
                "<li>看到不合适的内容点「举报」：3 个人举报后先隐藏，等维护者处理。自己发的可以在同一个浏览器里「撤回」。"
-               "<br>Report anything that breaks the rules: after three reports it is hidden until a maintainer looks. "
+               "<br>Report anything that breaks the rules: after 3 reports it is hidden until a maintainer looks. "
                "You can withdraw your own posts from the same browser.</li></ul>")
 
 
@@ -1204,8 +1226,8 @@ def blog_page(site: Site) -> str:
 
 
 def not_found_page(site: Site) -> str:
-    content = ('<h1>找不到页面 | Page not found</h1><p>这个地址没有内容。课程文件夹可能改名了，试试搜索。</p>'
-               f'<p>Nothing lives at this address; the course folder may have been renamed. Try the <a href="{site.prefix}">search on the home page</a>.</p>')
+    content = (f'<h1>找不到页面 | Page not found</h1><p>这个地址没有内容。课程文件夹可能改名了，试试<a href="{site.prefix}">首页的搜索</a>。'
+               f'<br>Nothing lives at this address; the course folder may have been renamed. Try the <a href="{site.prefix}">search on the home page</a>.</p>')
     return page(site, "找不到页面 | Not found", content)
 
 
@@ -1256,6 +1278,8 @@ def build(root: Path, out: Path, prefix: str, topics: dict | None = None) -> Sit
         if rel.endswith(".html"):   # the template's canonical placeholder becomes this page's public address
             text = text.replace("__CANONICAL__", SITE_URL + (rel[:-len("index.html")] if rel.endswith("index.html") else rel))
             text = versioned_assets(text)
+            if REDIRECT_MARK not in text:
+                text = i18n.localize(text)
         p.write_text(text, encoding="utf-8")
 
     site.recent = recent_entries(site)

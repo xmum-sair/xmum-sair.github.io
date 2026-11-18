@@ -97,8 +97,21 @@ import re
 import tempfile
 
 
+class _Out(type(pathlib.Path())):
+    """The build output as these checks read it: pages without the language marks site/i18n.py adds, so
+    "讨论区 | Discussion" is found as written. The marks have their own checks, which read the files raw."""
+
+    def read_text(self, *args, **kwargs):
+        text = super().read_text(*args, **kwargs)
+        return build.i18n.plain(text) if self.suffix == ".html" else text
+
+
+def _raw(page) -> str:
+    return pathlib.Path(page).read_text(encoding="utf-8")
+
+
 def _build(prefix=P):
-    out = pathlib.Path(tempfile.mkdtemp()) / "_site"
+    out = _Out(tempfile.mkdtemp()) / "_site"
     return build.build(ROOT, out, prefix), out
 
 
@@ -388,8 +401,8 @@ def test_nav_is_blocks_with_courses_menu():
     sub = re.search(r'<div class="nav-sub" id="nav-courses" hidden>(.*?)</div>', html, flags=re.S)
     assert sub and all(f'href="{P}{p}/"' in sub.group(1) for p in ("EEE", "AIT", "ROBO", "GE")) and f'href="{P}courses/"' in sub.group(1)
     assert nav.group(1).count('class="nb-ic"') == len(blocks) and nav.group(1).count('class="nb-t"') == len(blocks)
-    assert "<small>Discussion</small>" in nav.group(1) and "讨论" in nav.group(1) and "问答" not in nav.group(1)
-    assert "<small>Opportunities</small>" in nav.group(1) and 'class="nb upload"' in nav.group(1) and "<small>仓库</small>" in nav.group(1)
+    assert '<span class="nb-t">讨论Discussion</span>' in nav.group(1) and "问答" not in nav.group(1)   # the two halves, marks read away
+    assert "机会Opportunities" in nav.group(1) and 'class="nb upload"' in nav.group(1) and "<small>仓库</small>" in nav.group(1)
     css = (out / "static/style.css").read_text(encoding="utf-8")
     assert ".nb:hover" in css and "transition" in css and "prefers-reduced-motion" in css and ".nav-sub" in css
     js = (out / "static/site.js").read_text(encoding="utf-8")

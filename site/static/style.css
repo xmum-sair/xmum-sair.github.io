@@ -29,7 +29,7 @@ main, .site-header, .site-footer { max-width: 960px; margin: 0 auto; padding: 0 
   padding-top: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line);
 }
 .brand { font-weight: 700; font-size: 1.1rem; color: var(--fg); text-decoration: none; }
-.brand span { color: var(--muted); font-weight: 400; }
+html:not([data-lang]) .brand .l-sep, html:not([data-lang]) .brand .l-en { color: var(--muted); font-weight: 400; }
 .mini-search input { width: 12em; border-radius: 10px; }
 .tools { display: flex; gap: 8px; align-items: center; justify-self: end; }
 .theme-toggle {
@@ -295,7 +295,7 @@ ul.posts small { white-space: nowrap; }
 #rate-verify { margin-top: 12px; min-height: 65px; }
 
 /* home page */
-.hero h1 span { font-weight: 400; color: var(--muted); }
+html:not([data-lang]) .hero h1 .l-sep, html:not([data-lang]) .hero h1 .l-en { font-weight: 400; color: var(--muted); }
 .home-stats { margin: .4rem 0 0; font-size: .85rem; }
 .news-strip { margin: 18px 0 6px; padding: 8px 12px; border: 1px dashed var(--line); border-radius: 10px; font-size: .88rem; color: var(--muted); }
 .news-strip .news-head { margin: 0 0 2px; }
@@ -389,7 +389,7 @@ p.more { margin: .6rem 0 0; font-size: .9rem; }
 .board-form > .f-org, .board-form > .f-code, .board-form > .f-deadline, .board-form > .f-location, .board-form > .f-link, .board-form > .f-contact { grid-column: auto; }
 @media (max-width: 600px) { .board-form { grid-template-columns: 1fr; } }
 .hero h1 { font-size: 1.55rem; }
-@media (max-width: 600px) { .hero h1 span { display: none; } }
+@media (max-width: 600px) { html:not([data-lang]) .hero h1 .l-sep, html:not([data-lang]) .hero h1 .l-en { display: none; } }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .note::before { background: rgba(255,255,255,.16); border-color: rgba(255,255,255,.08); } }
 :root[data-theme="dark"] .note::before { background: rgba(255,255,255,.16); border-color: rgba(255,255,255,.08); }
 
@@ -464,3 +464,20 @@ ul.threads { list-style: none; padding: 0; margin: 0; }
 .md-preview { min-height: 280px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 14px; }
 .md-upload { min-height: 1.2em; }
 .guide { margin-top: 18px; }
+
+/* ---------- language. Every page carries both languages; site/i18n.py marks the halves (l-zh, l-en, and l-sep for what
+   sits between them) and base.html's first script sets <html data-lang>, so one half shows. Without script: both, as written. */
+html[data-lang] .l-sep { display: none !important; }
+html[data-lang="zh"] .l-en { display: none !important; }
+html[data-lang="en"] .l-zh { display: none !important; }
+/* the English used to be the small grey second line; on its own it is the first line */
+html[data-lang="en"] small.l-en, html[data-lang="en"] .l-en > small:only-child { font: inherit; color: inherit; opacity: 1; }
+html[data-lang="en"] .l-en > .muted:only-child { color: inherit; }
+html:not([data-lang]) .nb-t > .l-en { font-weight: 400; font-size: .72rem; opacity: .75; }
+html:not([data-lang]) .lang-toggle { display: none; }
+.lang-toggle {
+  font: inherit; font-size: .85rem; font-weight: 700; line-height: 1.25; padding: 6px 9px; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--fg);
+  transition: transform .18s ease, background .18s ease;
+}
+.lang-toggle:hover { transform: translateY(-1px); background: var(--accent-bg); }
